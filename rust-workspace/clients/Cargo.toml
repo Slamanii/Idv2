@@ -1,0 +1,20 @@
+[package]
+name = "clients"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "register-voter"
+path = "src/register_voter.rs"
+
+[[bin]]
+name = "verify-tally"
+path = "src/verify_tally.rs"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+# solana-client = "1.18"   # uncomment when wiring real RPC (Day 23)

@@ -1,0 +1,13 @@
+[package]
+name = "enclave"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+# cryptoki = "0.8"               # PKCS#11 bindings for SoftHSM2 (Day 2)
+# curve25519-dalek = "4"         # Ristretto255 Pedersen commitments (Day 6)
+# ed25519-dalek = "2"             # demo signing path
+# pqcrypto-wots = "*"            # production signing — validate on Day 3

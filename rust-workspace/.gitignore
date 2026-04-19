@@ -1,0 +1,9 @@
+target/
+**/*.rs.bk
+Cargo.lock
+.DS_Store
+*.so
+*.dylib
+.env
+.enclave-counter
+softhsm-tokens/
