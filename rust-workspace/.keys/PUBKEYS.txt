@@ -1,0 +1,11 @@
+# idv2 pubkey manifest — generated 2026-05-09T15:26:50Z
+# Safe to commit. Private keys live alongside these files and must NOT be committed.
+
+authority   = 4ecXmvC9Y6m55We8MPjEuLZJNXvLQBMkMY835yVUSkjD
+relayer     = 4RHqjYnzAH2tQ7i4L96Sb83qSGdMYjpVvMstpeuiLhrc
+aggregation = Fc1NRHuk69UuNmQCFqkhWNyA9Nk97tRF2pKUf3VVF23V
+
+election_registry = HXAbaupuAe7kEAc6VFq9rXS8SNG5uE3wNYfEYbHvx1k5
+voter_registry = ApDyjRGXD8iV21xTW6XkX1CKJaq29r3vb2oRUzN6fkFb
+ballot = HmnbwFChkY4WTTuFomed9cjVoLBQPrkTqwy16RWj6kdQ
+tally = e2MdQi5utJLAA2m2oDJHaYC7hsH7DQGV94iif6ngfp8

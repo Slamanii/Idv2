@@ -9,7 +9,12 @@ members = [
     "enclave",
     "dashboard",
     "tests",
+    "smt-server",
 ]
+
+[workspace.lints.rust]
+unexpected_cfgs = "allow"
+dead_code = "allow"
 
 [workspace.package]
 version = "0.1.0"
@@ -18,13 +23,51 @@ authors = ["Adrian"]
 license = "MIT"
 
 [workspace.dependencies]
-# Shared dependencies pinned at the workspace level so every crate uses the same version.
-sha2 = "0.10"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "1"
-anyhow = "1"
-tokio = { version = "1", features = ["full"] }
+
+pinocchio          = "0.8"
+pinocchio-pubkey   = "0.2"
+pinocchio-system   = "0.2"
+pinocchio-log      = "0.3"
+
+
+solana-rpc-client        = "=3.0.10"     # pinned to match agave-syscalls 3.0.10 (from mollusk-svm 0.7.2)
+solana-sdk               = "=3.0.0"
+solana-commitment-config = "3"
+solana-sdk-ids           = "3"
+
+
+
+borsh              = { version = "1.5", features = ["derive"], default-features = false }
+
+
+sha2               = "0.10"
+serde              = { version = "1", features = ["derive"] }
+serde_json         = "1"
+thiserror          = "1"
+anyhow             = "1"
+tokio              = { version = "1", features = ["full"] }
+clap               = { version = "4", features = ["derive"] }
+
+
+mollusk-svm        = "=0.7.2"   # last version on solana-pubkey ^3.0; compat with sdk 3.0.0
+
+cryptoki           = "0.7"      # PKCS#11 binding; used by the enclave crate
+hkdf               = "0.12"
+rand               = "0.8"
+curve25519-dalek   = { version = "4", features = ["rand_core"] }
+sha3               = "0.10"
+
+axum               = { version = "0.7", features = ["ws"] }
+axum-server        = { version = "0.6", features = ["tls-rustls"] }
+tower-http         = { version = "0.5", features = ["cors", "fs"] }
+tokio-tungstenite  = "0.21"
+futures-util       = "0.3"
+bincode            = "1"
+hmac               = "0.12"
+rcgen              = "0.13"
+reqwest            = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+
 
 # Solana BPF release profile. Matches the settings solana-program-library and
 # Anchor use. Overflow checks stay ON in release because voting programs cannot

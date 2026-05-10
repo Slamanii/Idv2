@@ -8,6 +8,23 @@ name = "e2e-harness"
 path = "src/main.rs"
 
 [dependencies]
-anyhow.workspace = true
-tokio.workspace = true
-# solana-test-validator integration happens on Day 22
+anyhow.workspace            = true
+tokio.workspace             = true
+solana-sdk.workspace        = true
+solana-rpc-client.workspace     = true
+borsh = { version = "1.5", default-features = false, features = ["derive"] }
+sha2.workspace              = true
+rand.workspace              = true
+
+election_registry = { path = "../programs/election_registry", features = ["no-entrypoint"] }
+voter_registry    = { path = "../programs/voter_registry",    features = ["no-entrypoint"] }
+ballot            = { path = "../programs/ballot",            features = ["no-entrypoint"] }
+tally             = { path = "../programs/tally",             features = ["no-entrypoint"] }
+
+[dev-dependencies]
+mollusk-svm.workspace = true
+solana-sdk.workspace  = true
+
+[[test]]
+name = "lifecycle"
+path = "tests/lifecycle.rs"

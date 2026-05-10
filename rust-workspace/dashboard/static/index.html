@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>idv2 — Aggregate Results</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background:#0d1117; color:#e6edf3; height:100vh; display:flex; flex-direction:column; }
+
+  /* ── header ── */
+  header { display:flex; align-items:center; justify-content:space-between; padding:10px 24px; background:#161b22; border-bottom:1px solid #30363d; flex-shrink:0; }
+  header h1 { font-size:0.95rem; font-weight:600; letter-spacing:0.05em; color:#e6edf3; }
+  #live-badge { font-size:0.72rem; padding:3px 10px; border-radius:12px; background:#1f2d1f; color:#3fb950; border:1px solid #238636; display:flex; align-items:center; gap:6px; }
+  #live-dot { width:7px; height:7px; border-radius:50%; background:#3fb950; animation:pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  #live-badge.offline { background:#2d1f1f; color:#f85149; border-color:#da3633; }
+  #live-badge.offline #live-dot { background:#f85149; }
+
+  /* ── map ── */
+  #map { flex:1; min-height:0; }
+
+  /* ── stats bar ── */
+  #stats { flex-shrink:0; background:#161b22; border-top:1px solid #30363d; padding:14px 24px 12px; display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; }
+  .stat-block { display:flex; flex-direction:column; gap:6px; min-width:160px; }
+  .stat-label { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.07em; color:#8b949e; }
+  .cand-stat { display:flex; align-items:center; gap:8px; }
+  .cand-pip { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .cand-name { font-size:0.82rem; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px; }
+  .cand-count { font-size:0.82rem; font-weight:600; font-variant-numeric:tabular-nums; }
+  .bar-track { height:3px; background:#21262d; border-radius:2px; width:100%; margin-top:1px; }
+  .bar-fill { height:3px; border-radius:2px; transition:width 0.5s ease; }
+  .divider { width:1px; background:#30363d; align-self:stretch; }
+  #total-block { display:flex; flex-direction:column; justify-content:center; gap:2px; }
+  #total-number { font-size:1.6rem; font-weight:700; font-variant-numeric:tabular-nums; line-height:1; }
+  #total-sub { font-size:0.7rem; color:#8b949e; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>idv2 &mdash; Aggregate Results</h1>
+  <div id="live-badge" class="offline">
+    <div id="live-dot"></div>
+    <span id="live-text">connecting</span>
+  </div>
+</header>
+
+<div id="map"></div>
+
+<div id="stats">
+  <div id="total-block">
+    <div class="stat-label">Total Votes Cast</div>
+    <div id="total-number">0</div>
+    <div id="total-sub">across all polling units</div>
+  </div>
+  <div class="divider"></div>
+  <div class="stat-block">
+    <div class="stat-label">Parties</div>
+    <div id="cand-stats"></div>
+  </div>
+</div>
+
+<script>
+// ── state_id → GeoJSON shapeName ──────────────────────────────────────────────
+const STATE_NAMES = {
+  1:"Abia",2:"Adamawa",3:"Akwa Ibom",4:"Anambra",5:"Bauchi",6:"Bayelsa",
+  7:"Benue",8:"Borno",9:"Cross River",10:"Delta",11:"Ebonyi",12:"Edo",
+  13:"Ekiti",14:"Enugu",15:"Gombe",16:"Imo",17:"Jigawa",
+  18:"Kaduna",19:"Kano",20:"Katsina",21:"Kebbi",22:"Kogi",
+  23:"Kwara",24:"Lagos",25:"Nasarawa",26:"Niger",27:"Ogun",28:"Ondo",
+  29:"Osun",30:"Oyo",31:"Plateau",32:"Rivers",33:"Sokoto",34:"Taraba",
+  35:"Yobe",36:"Zamfara",37:"Federal Capital Territory"
+};
+const NAME_TO_ID = Object.fromEntries(
+  Object.entries(STATE_NAMES).map(([id, n]) => [n.toLowerCase(), +id])
+);
+
+const COLORS = ["#1f6feb","#da3633","#2ea043","#9e6a03","#8957e5","#f0883e"];
+const NO_DATA = "#21262d";
+
+let candidates = [], totals = [], byState = {}, geoLayer = null, geoData = null;
+
+// ── Leaflet ───────────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl:true, attributionControl:false });
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+  { maxZoom:19, subdomains:'abcd' }).addTo(map);
+
+fetch('/data/nigeria-adm1.geojson')
+  .then(r => r.json())
+  .then(d => { geoData = d; buildLayer(); map.fitBounds(geoLayer.getBounds()); })
+  .catch(e => console.error('GeoJSON:', e));
+
+function winnerColor(sid) {
+  const c = byState[String(sid)];
+  if (!c || !c.some(v => v > 0)) return NO_DATA;
+  let best = -1, bestV = 0;
+  c.forEach((v, i) => { if (v > bestV) { bestV = v; best = i; } });
+  return best >= 0 ? COLORS[best % COLORS.length] : NO_DATA;
+}
+
+function stateId(feat) {
+  // Accept both geoBoundaries (shapeName) and Natural Earth (name / NAME).
+  const n = (feat.properties.shapeName || feat.properties.name || feat.properties.NAME || '').toLowerCase();
+  return NAME_TO_ID[n] || null;
+}
+
+function popupHtml(sid, name) {
+  const c = byState[String(sid)] || [];
+  if (!candidates.length || !c.some(v=>v>0)) return `<b>${name}</b><br><em>no votes yet</em>`;
+  return `<b>${name}</b><br>` + candidates.map((n,i) => `${n}: <b>${c[i]||0}</b>`).join('<br>');
+}
+
+function buildLayer() {
+  if (!geoData) return;
+  if (geoLayer) map.removeLayer(geoLayer);
+  geoLayer = L.geoJSON(geoData, {
+    style(f) {
+      return { fillColor:winnerColor(stateId(f)), weight:0.7, color:'#484f58', fillOpacity:0.82 };
+    },
+    onEachFeature(f, layer) {
+      const sid = stateId(f);
+      const name = f.properties.shapeName || '';
+      layer.on({
+        mouseover(e) {
+          e.target.setStyle({ weight:2, color:'#e6edf3', fillOpacity:1 });
+          e.target.bindPopup(popupHtml(sid, name)).openPopup();
+        },
+        mouseout(e) { geoLayer.resetStyle(e.target); e.target.closePopup(); }
+      });
+    }
+  }).addTo(map);
+}
+
+// ── Stats bar ─────────────────────────────────────────────────────────────────
+function renderStats() {
+  const total = totals.reduce((a,b) => a+b, 0);
+  document.getElementById('total-number').textContent = total.toLocaleString();
+
+  const el = document.getElementById('cand-stats');
+  el.innerHTML = '';
+  candidates.forEach((name, i) => {
+    const v = totals[i] || 0;
+    const pct = total > 0 ? (v/total*100).toFixed(1) : '0.0';
+    const color = COLORS[i % COLORS.length];
+    el.insertAdjacentHTML('beforeend', `
+      <div class="cand-stat">
+        <div class="cand-pip" style="background:${color}"></div>
+        <span class="cand-name">${name}</span>
+        <span class="cand-count">${v.toLocaleString()} <span style="color:#8b949e;font-weight:400">(${pct}%)</span></span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+    `);
+  });
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function applyUpdate(msg) {
+  candidates = msg.candidates || candidates;
+  totals     = msg.totals    || [];
+  byState    = msg.by_state  || {};
+  renderStats();
+  buildLayer();
+}
+
+const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+let ws;
+function connect() {
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen = () => {
+    document.getElementById('live-text').textContent = 'live';
+    document.getElementById('live-badge').classList.remove('offline');
+  };
+  ws.onmessage = e => { const m = JSON.parse(e.data); if (m.type === 'tally_update') applyUpdate(m); };
+  ws.onclose   = () => {
+    document.getElementById('live-text').textContent = 'reconnecting';
+    document.getElementById('live-badge').classList.add('offline');
+    setTimeout(connect, 3000);
+  };
+}
+connect();
+
+// Seed from REST on first load.
+fetch('/api/tally').then(r=>r.json()).then(d => {
+  candidates = d.candidate_names || [];
+  totals     = d.totals || [];
+  byState    = d.by_state || {};
+  renderStats();
+  buildLayer();
+});
+</script>
+</body>
+</html>

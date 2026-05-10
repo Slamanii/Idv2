@@ -3,6 +3,24 @@ name = "clients"
 version.workspace = true
 edition.workspace = true
 
+# `idv2-admin` (authority-only, online) and `idv2-verify` (public, read-only)
+# ship as two separate binaries from the same crate so they can share the
+# core chain-reading helpers while keeping their dependency surfaces distinct.
+# See docs/CLI.md for the trust-model split.
+[[bin]]
+name = "idv2-admin"
+path = "src/admin/main.rs"
+
+[[bin]]
+name = "idv2-verify"
+path = "src/verify/main.rs"
+
+[[bin]]
+name = "idv2-voter"
+path = "src/voter/main.rs"
+
+# Legacy demo binaries from the scaffold. Keep buildable during migration;
+# remove once idv2-admin and idv2-verify fully subsume them.
 [[bin]]
 name = "register-voter"
 path = "src/register_voter.rs"
@@ -12,9 +30,23 @@ name = "verify-tally"
 path = "src/verify_tally.rs"
 
 [dependencies]
-anyhow.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-sha2.workspace = true
-tokio.workspace = true
-# solana-client = "1.18"   # uncomment when wiring real RPC (Day 23)
+solana-rpc-client.workspace        = true
+solana-sdk.workspace               = true
+solana-commitment-config.workspace = true
+solana-sdk-ids.workspace           = true
+borsh = { version = "1.5", default-features = false, features = ["derive"] }
+clap.workspace              = true
+anyhow.workspace            = true
+serde.workspace             = true
+serde_json.workspace        = true
+sha2.workspace              = true
+tokio.workspace             = true
+rand.workspace              = true
+ureq                        = { version = "2", features = ["json"] }
+
+# Link programs as libraries (not BPF) so the CLI can reuse their account
+# layouts + discriminators without re-declaring them.
+election_registry = { path = "../programs/election_registry", features = ["no-entrypoint"] }
+voter_registry    = { path = "../programs/voter_registry",    features = ["no-entrypoint"] }
+ballot            = { path = "../programs/ballot",            features = ["no-entrypoint"] }
+tally             = { path = "../programs/tally",             features = ["no-entrypoint"] }

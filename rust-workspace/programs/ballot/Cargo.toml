@@ -3,11 +3,27 @@ name = "ballot"
 version.workspace = true
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["cdylib", "lib"]
 
+[features]
+no-entrypoint = []
+
 [dependencies]
-# pinocchio = "0.x"
-sha2.workspace = true
-thiserror.workspace = true
-# ed25519-dalek = "2"   # demo signing path; uncomment on Day 12
+pinocchio.workspace        = true
+pinocchio-pubkey.workspace = true
+pinocchio-system.workspace = true
+pinocchio-log.workspace    = true
+sha2.workspace             = true
+thiserror.workspace        = true
+
+[target.'cfg(target_os = "solana")'.dependencies]
+getrandom = { version = "0.2", features = ["custom"] }
+
+[dev-dependencies]
+mollusk-svm.workspace = true
+solana-sdk.workspace  = true
+tally = { path = "../tally", features = ["no-entrypoint"] }

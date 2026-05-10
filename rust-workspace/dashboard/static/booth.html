@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>idv2 — Voting Booth</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: #0d0dd6;
+  color: #e8e8e8;
+  font-family: 'Courier New', monospace;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px 10px 40px;
+}
+
+/* ── NES scanline overlay ── */
+body::after {
+  content:'';
+  position:fixed;
+  inset:0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+  pointer-events:none;
+  z-index:9999;
+}
+
+#game {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px 20px 40px;
+}
+
+/* ── Header ── */
+#header {
+  background: #1a1a2e;
+  border: 3px solid #e8c000;
+  padding: 14px 20px 10px;
+  text-align: center;
+}
+#header h1 {
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  color: #e8c000;
+  text-shadow: 2px 2px #000;
+}
+#unit-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: #ff4444;
+  margin-top: 4px;
+  text-transform: uppercase;
+}
+
+/* ── HUD bar ── */
+#hud {
+  display: flex;
+  gap: 0;
+  border: 2px solid #444;
+  background: #111;
+}
+.hud-cell {
+  flex: 1;
+  padding: 7px 10px;
+  border-right: 2px solid #333;
+  font-size: 0.52rem;
+  letter-spacing: 0.06em;
+  overflow: hidden;
+}
+.hud-cell:last-child { border-right: none; }
+.hud-key { color: #888; display: block; margin-bottom: 2px; }
+.hud-val { color: #00e000; font-size: 0.58rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Dialogue box ── */
+#dialogue {
+  background: #0d0d1a;
+  border: 3px solid #cc2222;
+  padding: 14px 18px;
+  font-size: 0.62rem;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  color: #ccd;
+  min-height: 54px;
+  position: relative;
+}
+#dialogue::before {
+  content: '\25B6';
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  color: #cc2222;
+  font-size: 0.5rem;
+  animation: blink 0.9s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── Panels ── */
+.panel {
+  background: #0f0f1e;
+  border: 2px solid #333;
+  padding: 20px 22px;
+  display: none;
+}
+.panel.active { display: block; }
+.panel-title {
+  font-size: 0.52rem;
+  color: #888;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #222;
+  padding-bottom: 6px;
+}
+
+/* ── Fingerprint input ── */
+#fp-input {
+  width: 100%;
+  background: #000;
+  border: 2px solid #cc2222;
+  color: #00ff00;
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  padding: 14px 16px;
+  outline: none;
+  letter-spacing: 0.08em;
+}
+#fp-input:focus { border-color: #ff6666; }
+#fp-input::placeholder { color: #333; }
+
+/* ── Buttons ── */
+.nes-btn {
+  background: #1a1a3e;
+  border: 3px solid #cc2222;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  padding: 14px 24px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.1s;
+  margin-top: 10px;
+}
+.nes-btn:hover { background: #2a2a5e; }
+.nes-btn:active { transform: translateY(2px); }
+.nes-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.nes-btn.danger { border-color: #ff4444; }
+.nes-btn.danger:hover { background: #3e1a1a; }
+.nes-btn.success { border-color: #00cc44; }
+.nes-btn.success:hover { background: #0d2e1a; }
+
+/* ── Voter info card ── */
+#voter-info {
+  background: #0a1a0a;
+  border: 2px solid #00cc44;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  font-size: 0.6rem;
+  line-height: 2;
+}
+.info-row { display: flex; gap: 10px; }
+.info-key { color: #558855; min-width: 80px; }
+.info-val { color: #aaffaa; }
+
+/* ── Candidate cards ── */
+#candidates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-top: 6px;
+}
+.candidate-card {
+  background: #0a0a1e;
+  border: 3px solid #333;
+  padding: 18px 12px 14px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.candidate-card:hover { border-color: #ff6666; background: #12122e; }
+.candidate-card.selected { border-color: #e8c000; background: #1a1a00; }
+
+.sprite-wrap {
+  width: 48px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cand-party {
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: #e8c000;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+.cand-fullname {
+  font-size: 0.38rem;
+  color: #666;
+  letter-spacing: 0.05em;
+  line-height: 1.4;
+}
+.cand-num {
+  font-size: 0.5rem;
+  color: #555;
+}
+
+/* ── Confirm panel ── */
+#confirm-choice {
+  background: #0a0a1e;
+  border: 2px solid #cc2222;
+  padding: 16px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+#confirm-party {
+  font-size: 0.9rem;
+  color: #e8c000;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+#confirm-name {
+  font-size: 0.48rem;
+  color: #666;
+}
+.btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* ── Result panel ── */
+#result-box {
+  text-align: center;
+  padding: 10px;
+}
+#result-party {
+  font-size: 1.1rem;
+  color: #00ff88;
+  letter-spacing: 0.1em;
+  margin: 10px 0 4px;
+}
+#result-name {
+  font-size: 0.48rem;
+  color: #558855;
+  margin-bottom: 14px;
+}
+#result-sig {
+  font-size: 0.38rem;
+  color: #335533;
+  word-break: break-all;
+  margin-bottom: 14px;
+}
+
+/* ── Error screen ── */
+#error-screen {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #0a0000;
+  color: #ff4444;
+  font-size: 1.2rem;
+  letter-spacing: 0.15em;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 1000;
+}
+#error-screen p { font-size: 0.55rem; color: #884444; letter-spacing: 0.08em; max-width: 480px; text-align:center; }
+
+/* ── Loading ── */
+#loading-screen {
+  position: fixed;
+  inset: 0;
+  background: #050505;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  font-size: 0.7rem;
+  color: #cc2222;
+  letter-spacing: 0.15em;
+}
+#loading-screen.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div id="loading-screen">LOADING...</div>
+
+<div id="error-screen">
+  INVALID POLLING UNIT
+  <p id="error-detail"></p>
+</div>
+
+<div id="game" style="display:none">
+
+  <div id="header">
+    <h1>&#9733; IDV2 VOTING BOOTH &#9733;</h1>
+    <div id="unit-label">[ LOADING UNIT ]</div>
+  </div>
+
+  <div id="hud">
+    <div class="hud-cell">
+      <span class="hud-key">UNIT</span>
+      <span class="hud-val" id="hud-unit">&#8212;</span>
+    </div>
+    <div class="hud-cell">
+      <span class="hud-key">VOTER</span>
+      <span class="hud-val" id="hud-voter">&#8212;</span>
+    </div>
+    <div class="hud-cell">
+      <span class="hud-key">STATUS</span>
+      <span class="hud-val" id="hud-status">WAITING</span>
+    </div>
+  </div>
+
+  <div id="dialogue">INITIALISING SYSTEM...</div>
+
+  <!-- Panel 1: Fingerprint scan -->
+  <div class="panel active" id="panel-fp">
+    <div class="panel-title">&#9650; VOTER IDENTIFICATION</div>
+    <input type="text" id="fp-input" placeholder="ENTER FINGERPRINT SECRET (e.g. fp-MS-146)" autocomplete="off" spellcheck="false"/>
+    <br>
+    <button class="nes-btn" id="btn-identify">&#9658; SCAN FINGERPRINT</button>
+  </div>
+
+  <!-- Panel 2: Voter confirmed, choose candidate -->
+  <div class="panel" id="panel-vote">
+    <div class="panel-title">&#9650; VOTER CONFIRMED &#8212; SELECT CANDIDATE</div>
+    <div id="voter-info"></div>
+    <div id="register-row" style="display:none;margin-bottom:14px;">
+      <button class="nes-btn" id="btn-register">&#9658; REGISTER VOTER</button>
+    </div>
+    <div id="candidates-grid"></div>
+  </div>
+
+  <!-- Panel 3: Confirm vote -->
+  <div class="panel" id="panel-confirm">
+    <div class="panel-title">&#9650; CONFIRM YOUR VOTE</div>
+    <div id="confirm-choice">
+      <div id="confirm-party">&#8212;</div>
+      <div id="confirm-name">&#8212;</div>
+    </div>
+    <div class="btn-row">
+      <button class="nes-btn success" id="btn-confirm">&#10003; CONFIRM VOTE</button>
+      <button class="nes-btn danger" id="btn-back">&#9664; GO BACK</button>
+    </div>
+  </div>
+
+  <!-- Panel 4: Result -->
+  <div class="panel" id="panel-result">
+    <div class="panel-title">&#9650; VOTE CAST</div>
+    <div id="result-box">
+      <div style="font-size:0.52rem;color:#558855;letter-spacing:0.1em;">VOTED FOR:</div>
+      <div id="result-party">&#8212;</div>
+      <div id="result-name">&#8212;</div>
+      <div style="font-size:0.46rem;color:#555;margin-bottom:4px;">TRANSACTION SIGNATURE:</div>
+      <div id="result-sig">&#8212;</div>
+      <button class="nes-btn" id="btn-restart">&#9654; NEW VOTER</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Pixel-art SVG sprites ─────────────────────────────────────────────────────
+// Each sprite is rendered on a 12-col x 16-row pixel grid at 4px per cell = 48x64px
+
+function makeSvgSprite(pixels, palette) {
+  var cs = 4;
+  var W = pixels[0].length * cs;
+  var H = pixels.length * cs;
+  var rects = '';
+  for (var r = 0; r < pixels.length; r++) {
+    for (var c = 0; c < pixels[r].length; c++) {
+      var ch = pixels[r][c];
+      if (ch === '.' || !palette[ch]) continue;
+      rects += '<rect x="' + (c*cs) + '" y="' + (r*cs) + '" width="' + cs + '" height="' + cs + '" fill="' + palette[ch] + '"/>';
+    }
+  }
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" shape-rendering="crispEdges">' + rects + '</svg>';
+}
+
+// Mario (index 0): red hat, blue overalls
+var MARIO_PAL = { R:'#E52521', S:'#FBD4A0', B:'#6B3F10', O:'#0095D9', K:'#141414' };
+var MARIO_PIX = [
+  '....RRR.....',
+  '...RRRRR....',
+  '...BBBSB....',
+  '..BSSSSBB...',
+  '..SSSSSSS...',
+  '..SKKKSSS...',
+  '...SBBBS....',
+  '..OOOOOOO...',
+  '.OOOBBOOO...',
+  'OOOO..OOOO..',
+  '.OOO..OOO...',
+  '..BB....BB..',
+  '.BBB....BBB.',
+  'BB.......BB.',
+  '............',
+  '............'
+];
+
+// Luigi (index 1): green hat, green overalls
+var LUIGI_PAL = { G:'#1E7A0C', S:'#FBD4A0', B:'#6B3F10', O:'#1A8A2C', K:'#141414' };
+var LUIGI_PIX = [
+  '....GGG.....',
+  '...GGGGG....',
+  '...BBBSB....',
+  '..BSSSSBB...',
+  '..SSSSSSS...',
+  '..SKKKSSS...',
+  '...SBBBS....',
+  '..OOOOOOO...',
+  '.OOOGGOOO...',
+  'OOOO..OOOO..',
+  '.OOO..OOO...',
+  '..BB....BB..',
+  '.BBB....BBB.',
+  'BB.......BB.',
+  '............',
+  '............'
+];
+
+// Bowser (index 2): green shell, yellow spikes, imposing
+var BOWSER_PAL = { G:'#2D8B2D', Y:'#E8B800', S:'#F5A623', K:'#141414', R:'#cc2200' };
+var BOWSER_PIX = [
+  '.Y..Y..Y....',
+  'YYYYYYYYYYY.',
+  'GGGGGGGGGG..',
+  'GGSSGGSSGGG.',
+  'GGSSGGSSGG..',
+  'GGGGGGGGGGG.',
+  '.SSSSSSSS...',
+  'SSSSSSSSSSS.',
+  'SSRRSSSSRRS.',
+  'SSRRSSSSRRS.',
+  '.SSSSSSSSS..',
+  '..SBBBBBS...',
+  '..SBSSBSS...',
+  '..BB..BB....',
+  'YBB....BBY..',
+  '............'
+];
+
+var SPRITES = [
+  makeSvgSprite(MARIO_PIX, MARIO_PAL),
+  makeSvgSprite(LUIGI_PIX, LUIGI_PAL),
+  makeSvgSprite(BOWSER_PIX, BOWSER_PAL)
+];
+
+var PARTY_COLORS = ['#E52521', '#1E7A0C', '#E8B800', '#0095D9', '#8B00FF', '#FF6600'];
+
+// ── App state ─────────────────────────────────────────────────────────────────
+
+var selectedUnit = null;        // { id, name }
+var voterData = null;           // IdentifyResp
+var candidates = [];            // [{id, name, party}]
+var selectedCandidateId = null;
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+
+async function boot() {
+  var parts = window.location.pathname.split('/').filter(function(s){ return s.length > 0; });
+  var unitId = parts[parts.length - 1];
+
+  var units = [];
+  try {
+    var r = await fetch('/api/polling-units');
+    units = await r.json();
+  } catch(e) {
+    showError('Could not reach server: ' + e.message);
+    return;
+  }
+
+  var match = null;
+  for (var i = 0; i < units.length; i++) {
+    if (units[i].id === unitId) { match = units[i]; break; }
+  }
+
+  if (!match) {
+    showError('Unknown polling unit: "' + unitId + '". Valid units: ' + units.map(function(u){ return u.id; }).join(', '));
+    return;
+  }
+
+  selectedUnit = match;
+
+  try {
+    var cr = await fetch('/api/candidates');
+    candidates = await cr.json();
+  } catch(e) {
+    showError('Could not load candidates: ' + e.message);
+    return;
+  }
+
+  document.getElementById('loading-screen').classList.add('hidden');
+  document.getElementById('game').style.display = 'flex';
+  document.getElementById('game').style.flexDirection = 'column';
+
+  document.getElementById('unit-label').textContent = '[ ' + selectedUnit.name.toUpperCase() + ' ]';
+  document.getElementById('hud-unit').textContent = selectedUnit.id;
+
+  setDialogue('POLLING UNIT: ' + selectedUnit.name.toUpperCase() + '. SCAN VOTER FINGERPRINT TO PROCEED.');
+  setStatus('WAITING');
+
+  renderCandidates();
+}
+
+function showError(msg) {
+  document.getElementById('loading-screen').classList.add('hidden');
+  var es = document.getElementById('error-screen');
+  es.style.display = 'flex';
+  document.getElementById('error-detail').textContent = msg;
+}
+
+// ── Candidate cards ───────────────────────────────────────────────────────────
+
+function renderCandidates() {
+  var grid = document.getElementById('candidates-grid');
+  grid.innerHTML = '';
+  for (var i = 0; i < candidates.length; i++) {
+    (function(c, idx) {
+      var svgStr = SPRITES[idx] || SPRITES[0];
+      var color = PARTY_COLORS[idx % PARTY_COLORS.length];
+      var div = document.createElement('div');
+      div.className = 'candidate-card';
+      div.dataset.id = c.id;
+      div.innerHTML =
+        '<div class="sprite-wrap">' + svgStr + '</div>' +
+        '<div class="cand-party" style="color:' + color + '">' + escHtml(c.party) + '</div>' +
+        '<div class="cand-fullname">' + escHtml(c.name) + '</div>' +
+        '<div class="cand-num">NO. ' + (c.id + 1) + '</div>';
+      div.addEventListener('click', function(){ selectCandidate(c, idx); });
+      grid.appendChild(div);
+    })(candidates[i], i);
+  }
+}
+
+function selectCandidate(c, idx) {
+  if (!voterData) { setDialogue('PLEASE IDENTIFY VOTER FIRST.'); return; }
+  document.querySelectorAll('.candidate-card').forEach(function(el){ el.classList.remove('selected'); });
+  var card = document.querySelector('.candidate-card[data-id="' + c.id + '"]');
+  if (card) card.classList.add('selected');
+  selectedCandidateId = c.id;
+
+  var cp = document.getElementById('confirm-party');
+  cp.textContent = c.party.toUpperCase();
+  cp.style.color = PARTY_COLORS[idx % PARTY_COLORS.length];
+  document.getElementById('confirm-name').textContent = c.name;
+
+  showPanel('panel-confirm');
+  setDialogue('YOU SELECTED ' + c.party.toUpperCase() + '. PLEASE CONFIRM YOUR CHOICE.');
+  setStatus('CONFIRMING');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+}
+
+function setDialogue(text) {
+  document.getElementById('dialogue').textContent = text;
+}
+
+function setStatus(text) {
+  document.getElementById('hud-status').textContent = text;
+}
+
+function setVoterHud(name) {
+  document.getElementById('hud-voter').textContent = name || '—';
+}
+
+// ── Identify ──────────────────────────────────────────────────────────────────
+
+document.getElementById('btn-identify').addEventListener('click', async function() {
+  var fp = document.getElementById('fp-input').value.trim();
+  if (!fp) { setDialogue('PLEASE ENTER FINGERPRINT SECRET.'); return; }
+
+  setDialogue('SCANNING FINGERPRINT...');
+  setStatus('SCANNING');
+  document.getElementById('btn-identify').disabled = true;
+
+  try {
+    var r = await fetch('/api/identify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ polling_unit: selectedUnit.id, fingerprint_secret: fp })
+    });
+    var data = await r.json();
+    if (!r.ok) {
+      setDialogue('ERROR: ' + (data.error || data.message || JSON.stringify(data)));
+      setStatus('ERROR');
+      return;
+    }
+    voterData = data;
+    setVoterHud(data.full_name);
+
+    var infoEl = document.getElementById('voter-info');
+    infoEl.innerHTML =
+      '<div class="info-row"><span class="info-key">NAME</span><span class="info-val">' + escHtml(data.full_name) + '</span></div>' +
+      '<div class="info-row"><span class="info-key">STATE</span><span class="info-val">' + escHtml(data.state_name) + '</span></div>' +
+      '<div class="info-row"><span class="info-key">LGA</span><span class="info-val">' + escHtml(data.lga_name) + '</span></div>' +
+      '<div class="info-row"><span class="info-key">STATUS</span><span class="info-val" style="color:' + (data.registered ? '#aaffaa' : '#ffaa44') + '">' + (data.registered ? 'REGISTERED' : 'NOT REGISTERED') + '</span></div>';
+
+    document.getElementById('register-row').style.display = data.registered ? 'none' : 'block';
+
+    showPanel('panel-vote');
+    if (data.registered) {
+      setDialogue('VOTER VERIFIED: ' + data.full_name.toUpperCase() + '. SELECT YOUR CANDIDATE.');
+      setStatus('VERIFIED');
+    } else {
+      setDialogue('VOTER FOUND BUT NOT REGISTERED. REGISTER TO PROCEED.');
+      setStatus('NEEDS REG');
+    }
+  } catch(e) {
+    setDialogue('NETWORK ERROR: ' + e.message);
+    setStatus('ERROR');
+  } finally {
+    document.getElementById('btn-identify').disabled = false;
+  }
+});
+
+document.getElementById('fp-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('btn-identify').click();
+});
+
+// ── Register ──────────────────────────────────────────────────────────────────
+
+document.getElementById('btn-register').addEventListener('click', async function() {
+  var fp = document.getElementById('fp-input').value.trim();
+  setDialogue('REGISTERING VOTER ON CHAIN...');
+  setStatus('REGISTERING');
+  document.getElementById('btn-register').disabled = true;
+
+  try {
+    var r = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ polling_unit: selectedUnit.id, fingerprint_secret: fp })
+    });
+    var data = await r.json();
+    if (!r.ok) {
+      setDialogue('REGISTRATION FAILED: ' + (data.error || data.message || JSON.stringify(data)));
+      setStatus('ERROR');
+      return;
+    }
+    document.getElementById('register-row').style.display = 'none';
+    if (voterData) voterData.registered = true;
+    var infoEl = document.getElementById('voter-info');
+    var statusVal = infoEl.querySelector('.info-val[style]');
+    if (statusVal) { statusVal.textContent = 'REGISTERED'; statusVal.style.color = '#aaffaa'; }
+    setDialogue('REGISTRATION CONFIRMED. TX: ' + data.signature.slice(0,20) + '... SELECT CANDIDATE.');
+    setStatus('REGISTERED');
+  } catch(e) {
+    setDialogue('NETWORK ERROR: ' + e.message);
+    setStatus('ERROR');
+  } finally {
+    document.getElementById('btn-register').disabled = false;
+  }
+});
+
+// ── Confirm vote ──────────────────────────────────────────────────────────────
+
+document.getElementById('btn-confirm').addEventListener('click', async function() {
+  if (selectedCandidateId === null) return;
+  var fp = document.getElementById('fp-input').value.trim();
+  var c = null;
+  for (var i = 0; i < candidates.length; i++) {
+    if (candidates[i].id === selectedCandidateId) { c = candidates[i]; break; }
+  }
+
+  setDialogue('CASTING VOTE ON CHAIN...');
+  setStatus('VOTING');
+  document.getElementById('btn-confirm').disabled = true;
+
+  try {
+    var r = await fetch('/api/vote', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        polling_unit: selectedUnit.id,
+        fingerprint_secret: fp,
+        candidate_id: selectedCandidateId
+      })
+    });
+    var data = await r.json();
+    if (!r.ok) {
+      setDialogue('VOTE FAILED: ' + (data.error || data.message || JSON.stringify(data)));
+      setStatus('ERROR');
+      document.getElementById('btn-confirm').disabled = false;
+      return;
+    }
+
+    var rp = document.getElementById('result-party');
+    rp.textContent = c ? c.party.toUpperCase() : '?';
+    rp.style.color = PARTY_COLORS[selectedCandidateId % PARTY_COLORS.length];
+    document.getElementById('result-name').textContent = c ? c.name : '';
+    document.getElementById('result-sig').textContent = data.signature;
+
+    showPanel('panel-result');
+    setDialogue('VOTE ACCEPTED. THANK YOU FOR PARTICIPATING IN THE DEMOCRATIC PROCESS.');
+    setStatus('VOTED');
+    setVoterHud('—');
+  } catch(e) {
+    setDialogue('NETWORK ERROR: ' + e.message);
+    setStatus('ERROR');
+    document.getElementById('btn-confirm').disabled = false;
+  }
+});
+
+document.getElementById('btn-back').addEventListener('click', function() {
+  document.querySelectorAll('.candidate-card').forEach(function(el){ el.classList.remove('selected'); });
+  selectedCandidateId = null;
+  showPanel('panel-vote');
+  setDialogue('SELECTION CANCELLED. PLEASE CHOOSE A CANDIDATE.');
+  setStatus('VERIFIED');
+});
+
+// ── Restart ───────────────────────────────────────────────────────────────────
+
+document.getElementById('btn-restart').addEventListener('click', function() {
+  voterData = null;
+  selectedCandidateId = null;
+  document.getElementById('fp-input').value = '';
+  document.querySelectorAll('.candidate-card').forEach(function(el){ el.classList.remove('selected'); });
+  showPanel('panel-fp');
+  setDialogue('POLLING UNIT: ' + selectedUnit.name.toUpperCase() + '. SCAN VOTER FINGERPRINT TO PROCEED.');
+  setStatus('WAITING');
+  setVoterHud('—');
+});
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>
