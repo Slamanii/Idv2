@@ -1,22 +1,19 @@
 # idv2
 
-An anonymous, cryptographically verifiable voting system for Nigerian general elections. Built on Solana with Pinocchio, a national-HSM-cluster model for voter secrets, and a Merkle commitment scheme with nullifier-based double-vote prevention.
+An anonymous, cryptographically verifiable voting system for Democratic elections. Built on Solana with Pinocchio, a national-HSM-cluster model for voter secrets, and a Merkle commitment scheme with nullifier-based double-vote prevention.
 
 **Status:** Pre-build. Architecture locked. 26-day solo-developer hackathon build.
 
 ## Read first
 
-- [`CONTEXT.md`](./CONTEXT.md) — project state and all locked-in decisions at a glance.
-- [`docs/REPORT-v0.1.md`](./docs/REPORT-v0.1.md) — full design narrative in first person, covering the Option A → IDv2 pivot and the engineering deep-dive.
-- [`docs/PROJECT-PLAN.md`](./docs/PROJECT-PLAN.md) — 4-layer build plan with account layouts, milestones, dependencies, and risks.
-- [`docs/TIMELINE.md`](./docs/TIMELINE.md) — 26-day timeline with hard gates.
-- [`docs/NOTES.md`](./docs/NOTES.md) — running decisions log.
+- (./docs/Document 3.pdf) — A philosophical overview of the decisons made predesign and post deployment.
+- (./docs/IDv2_essay.docx) — full design narrative, covering the IDv1 → IDv2 pivot and the engineering deep-dive.
+
 
 ## Repository layout
 
 ```
 idv2/
-├── CONTEXT.md              Single source of truth on current project state
 ├── README.md               This file
 ├── docs/                   Design docs (read in the order above)
 └── rust-workspace/         Cargo workspace — see rust-workspace/README.md
@@ -24,6 +21,7 @@ idv2/
     ├── enclave/            SoftHSM2 + PKCS#11 wrapper, WOTS, counter
     ├── clients/            Registration + tally verifier CLIs
     ├── dashboard/          Aggregation server
+    ├── smt/                SMT server
     └── tests/              End-to-end test harness
 ```
 
